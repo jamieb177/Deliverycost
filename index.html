@@ -103,7 +103,10 @@
       map = L.map('map').setView(center, 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
-     (routeGeoJSON) {
+      }).addTo(map);
+    }
+
+    function updateMap(routeGeoJSON) {
       if (routeLayer) {
         map.removeLayer(routeLayer);
       }
