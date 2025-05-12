@@ -1,5 +1,213 @@
 
 <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Delivery Cost Calculator</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    img {
+      width: 100%;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+
+    input,
+    button {
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #map {
+      height: 400px;
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .loading-spinner {
+      display: none;
+      border: 4px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 4px solid #3498db;
+      width: 20px;
+      height: 20px;
+      animation: spin 2s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        margin: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://scontent.flba3-2.fna.fbcdn.net/v/t39.30808-6/448404075_383751298036230_6813450470412132232_n.jpg" alt="Kay's Little Flower Shop Logo" />
+    <h1>Delivery Cost Calculator</h1>
+    <input type="text" id="postcode" placeholder="Enter destination postcode" list="recent-postcodes" aria-label="Enter destination postcode" />
+    <datalist id="recent-postcodes"></datalist>
+    <button onclick="calculateRoute()" aria-label="Calculate delivery cost">Calculate</button>
+    <div class="loading-spinner" id="loading-spinner"></div>
+    <p id="result"></p>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+  <script>
+    const apiKey = '5b3ce3597851110001cf6248ce80059483fd4638b094de8dd267f429';
+    const homePostcode = 'NE61 5RJ';
+    const costPerMile = 0.52;
+
+    let map;
+    let routeLayer;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadRecentPostcodes();
+    });
+
+    async function getCoordinates(postcode) {
+      const response = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${postcode}`);
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        return data.features[0].geometry.coordinates;
+      } else {
+        throw new Error('Invalid postcode');
+      }
+    }
+
+    function initializeMap(center) {
+      map = L.map('map').setView(center, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+    }
+
+    function updateMap(routeGeoJSON) {
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+      }
+      routeLayer = L.geoJSON(routeGeoJSON).addTo(map);
+      map.fitBounds(routeLayer.getBounds());
+    }
+
+    function showLoadingSpinner(show) {
+      const spinner = document.getElementById('loading-spinner');
+      show ? 'block' : 'none';
+    }
+
+    function saveRecentPostcode(postcode) {
+      let recentPostcodes = JSON.parse(localStorage.getItem('recentPostcodes')) || [];
+      if (!recentPostcodes.includes(postcode)) {
+        recentPostcodes.push(postcode);
+        localStorage.setItem('recentPostcodes', JSON.stringify(recentPostcodes));
+        loadRecentPostcodes();
+      }
+    }
+
+    function loadRecentPostcodes() {
+      const datalist = document.getElementById('recent-postcodes');
+      datalist.innerHTML = '';
+      let recentPostcodes = JSON.parse(localStorage.getItem('recentPostcodes')) || [];
+      recentPostcodes.forEach(postcode => {
+        const option = document.createElement('option');
+        option.value = postcode;
+        datalist.appendChild(option);
+      });
+    }
+
+    async function calculateRoute() {
+      const postcode = document.getElementById('postcode').value.trim();
+      const resultElement = document.getElementById('result');
+      resultElement.textContent = '';
+
+      if (!postcode) {
+        resultElement.textContent = 'Please enter a valid postcode.';
+        return;
+      }
+
+      resultElement.textContent = 'Calculating...';
+      showLoadingSpinner(true);
+
+      try {
+        const homeCoordinates = await getCoordinates(homePostcode);
+        const destinationCoordinates = await getCoordinates(postcode);
+
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+          method: 'POST',
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/geo+json'
+          },
+          body: JSON.stringify({
+            coordinates: [homeCoordinates, destinationCoordinates]
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Routing API error:', errorText);
+          throw new Error('Routing API request failed');
+        }
+
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          const distanceMeters = data.features[0].properties.segments[0].distance;
+          const distanceMiles = distanceMeters / 1609.34;
+          const cost = distanceMiles * costPerMile;
+
+          resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
+
+          if (!map) {
+            initializeMap([homeCoordinates[1], homeCoordinates[0]]);
+          }
+          updateMap(data);
+          saveRecentPostcode(postcode);
+        } else {
+          console.error('No route features returned:', data);
+          throw new Error('No route found');
+        }
+      } catch (error) {
+        resultElement.textContent = 'Error calculating route. Please try again.';
+        console.error('Calculation error:', error);
+      } finally {
+        showLoadingSpinner(false);
+      }
+    }
+  </script>
+</body>
+</html>
+
+<!DOCTYPE html>
 <html lang="="en">
 <head>
   <meta charset="UTF-8" />
