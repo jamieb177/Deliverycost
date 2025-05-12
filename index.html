@@ -67,50 +67,63 @@
             }
         }
 
-        async function calculateRoute() {
-            const postcode = document.getElementById('postcode').value;
-            const resultElement = document.getElementById('result');
-            resultElement.textContent = '';
+       
+async function calculateRoute() {
+    const postcode = document.getElementById('postcode').value.trim();
+    const resultElement = document.getElementById('result');
+    resultElement.textContent = '';
 
-            try {
-                const homeCoordinates = await getCoordinates(homePostcode);
-                const destinationCoordinates = await getCoordinates(postcode);
+    if (!postcode) {
+        resultElement.textContent = 'Please enter a valid postcode.';
+        return;
+    }
 
-                const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': apiKey,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/geo+json'
-                    },
-                    body: JSON.stringify({
-                        coordinates: [homeCoordinates, destinationCoordinates]
-                    })
-                });
+    resultElement.textContent = 'Calculating...';
 
-                const data = await response.json();
-                if (data.features && data.features.length > 0) {
-                    const distanceMeters = data.features[0].properties.segments[0].distance;
-                    const distanceMiles = distanceMeters / 1609.34;
-                    const cost = distanceMiles * costPerMile;
+    try {
+        const homeCoordinates = await getCoordinates(homePostcode);
+        const destinationCoordinates = await getCoordinates(postcode);
 
-                    resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+            method: 'POST',
+            headers: {
+                'Authorization': apiKey,
+                'Content-Type': 'application/json',
+                'Accept': 'application/geo+json'
+            },
+            body: JSON.stringify({
+                coordinates: [homeCoordinates, destinationCoordinates]
+            })
+        });
 
-                    const map = L.map('map').setView([homeCoordinates[1], homeCoordinates[0]], 13);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    }).addTo(map);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Routing API error:', errorText);
+            throw new Error('Routing API request failed');
+        }
 
-                    const route = L.geoJSON(data).addTo(map);
-                    map.fitBounds(route.getBounds());
-                } else {
-                    throw new Error('Error calculating route');
-                }
-            } catch (error) {
-                resultElement.textContent = 'Error calculating route. Please try again.';
-                console.error(error);
-            }
-        }
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+            const distanceMeters = data.features[0].properties.segments[0].distance;
+            const distanceMiles = distanceMeters / 1609.34;
+            const cost = distanceMiles * costPerMile;
+
+            resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
+
+            if (!map) {
+                initializeMap([homeCoordinates[1], homeCoordinates[0]]);
+            }
+            updateMap(data);
+        } else {
+            console.error('No route features returned:', data);
+            throw new Error('No route found');
+        }
+    } catch (error) {
+        resultElement.textContent = 'Error calculating route. Please try again.';
+        console.error('Calculation error:', error);
+    }
+}
+
     </script>
 </body>
 </html>
