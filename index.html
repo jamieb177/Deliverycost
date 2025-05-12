@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Cost Calculator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        img {
+            width: 300px; /* 3x size */
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://scontent.flba3-2.fna.fbcdn.net/v/t39.30808-6/448404075_383751298036230_6813450470412132232_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=Nx_yCTu4w0EQ7kNvwGC6_Pd&_nc_oc=Adn5eu2940qMQxuNQ0Ji-FlW1KXULpIL2tMOLO2mhIMCoSHBynb-B1IGjdUET8N2vb4&_nc_zt=23&_nc_ht=scontent.flba3-2.fna&_nc_gid=xZWUkYosPx14O7C4_fsmsg&oh=00_AfLgvjlYG4GMsII-KoDKb92pL7aox2ab3UHLHmpF_2ZXZw&oe=682819E3" alt="Kay's Little Flower Shop Logo">
+        <h1>Delivery Cost Calculator</h1>
+        <input type="text" id="postcode" placeholder="Enter destination postcode">
+        <button onclick="calculateRoute()">Calculate</button>
+        <p id="result"></p>
+        <div id="map"></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script>
+        const apiKey = '5b3ce3597851110001cf6248ce80059483fd4638b094de8dd267f429';
+        const homePostcode = 'NE61 5RJ';
+        const costPerMile = 0.52;
+
+        async function getCoordinates(postcode) {
+            const response = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${postcode}`);
+            const data = await response.json();
+            if (data.features && data.features.length > 0) {
+                return data.features[0].geometry.coordinates;
+            } else {
+                throw new Error('Invalid postcode');
+            }
+        }
+
+        async function calculateRoute() {
+            const postcode = document.getElementById('postcode').value;
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = '';
+
+            try {
+                const homeCoordinates = await getCoordinates(homePostcode);
+                const destinationCoordinates = await getCoordinates(postcode);
+
+                const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': apiKey,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/geo+json'
+                    },
+                    body: JSON.stringify({
+                        coordinates: [homeCoordinates, destinationCoordinates]
+                    })
+                });
+
+                const data = await response.json();
+                if (data.features && data.features.length > 0) {
+                    const distanceMeters = data.features[0].properties.segments[0].distance;
+                    const distanceMiles = distanceMeters / 1609.34;
+                    const cost = distanceMiles * costPerMile;
+
+                    resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
+
+                    const map = L.map('map').setView([homeCoordinates[1], homeCoordinates[0]], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    const route = L.geoJSON(data).addTo(map);
+                    map.fitBounds(route.getBounds());
+                } else {
+                    throw new Error('Error calculating route');
+                }
+            } catch (error) {
+                resultElement.textContent = 'Error calculating route. Please try again.';
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
