@@ -6,50 +6,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delivery Cost Calculator</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
-    
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        margin: 0;
-        background-color: #f4f4f9;
-    }
-    .container {
-        background: #fff;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        width: 90%;
-        max-width: 500px;
-    }
-    img {
-        width: 300px;
-        margin-bottom: 20px;
-    }
-    input, button {
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        width: 100%;
-    }
-    #map {
-        height: 400px;
-        width: 100%;
-        margin-top: 20px;
-    }
-    @media (max-width: 600px) {
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
         img {
+            width: 300px;
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
             width: 100%;
         }
-    }
-</style>
-
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            img {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -62,96 +60,94 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script>
+        const apiKey = '5b3ce3597851110001cf6248ce80059483fd4638b094de8dd267f429';
+        const homePostcode = 'NE61 5RJ';
+        const costPerMile = 0.52;
 
-<script>
-    const apiKey = '5b3ce3597851110001cf6248ce80059483fd4638b094de8dd267f429';
-    const homePostcode = 'NE61 5RJ';
-    const costPerMile = 0.52;
+        let map;
+        let routeLayer;
 
-    let map;
-    let routeLayer;
-
-    async function getCoordinates(postcode) {
-        const response = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${postcode}`);
-        const data = await response.json();
-        if (data.features && data.features.length > 0) {
-            return data.features[0].geometry.coordinates;
-        } else {
-            throw new Error('Invalid postcode');
-        }
-    }
-
-    function initializeMap(center) {
-        map = L.map('map').setView(center, 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-    }
-
-    function updateMap(routeGeoJSON) {
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-        }
-        routeLayer = L.geoJSON(routeGeoJSON).addTo(map);
-        map.fitBounds(routeLayer.getBounds());
-    }
-
-    async function calculateRoute() {
-        const postcode = document.getElementById('postcode').value.trim();
-        const resultElement = document.getElementById('result');
-        resultElement.textContent = '';
-
-        if (!postcode) {
-            resultElement.textContent = 'Please enter a valid postcode.';
-            return;
-        }
-
-        resultElement.textContent = 'Calculating...';
-
-        try {
-            const homeCoordinates = await getCoordinates(homePostcode);
-            const destinationCoordinates = await getCoordinates(postcode);
-
-            const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-                method: 'POST',
-                headers: {
-                    'Authorization': apiKey,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/geo+json'
-                },
-                body: JSON.stringify({
-                    coordinates: [homeCoordinates, destinationCoordinates]
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Routing API error:', errorText);
-                throw new Error('Routing API request failed');
-            }
-
+        async function getCoordinates(postcode) {
+            const response = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${postcode}`);
             const data = await response.json();
             if (data.features && data.features.length > 0) {
-                const distanceMeters = data.features[0].properties.segments[0].distance;
-                const distanceMiles = distanceMeters / 1609.34;
-                const cost = distanceMiles * costPerMile;
-
-                resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
-
-                if (!map) {
-                    initializeMap([homeCoordinates[1], homeCoordinates[0]]);
-                }
-                updateMap(data);
+                return data.features[0].geometry.coordinates;
             } else {
-                console.error('No route features returned:', data);
-                throw new Error('No route found');
+                throw new Error('Invalid postcode');
             }
-        } catch (error) {
-            resultElement.textContent = 'Error calculating route. Please try again.';
-            console.error('Calculation error:', error);
         }
-    }
-</script>
 
+        function initializeMap(center) {
+            map = L.map('map').setView(center, 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        function updateMap(routeGeoJSON) {
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+           .geoJSON(routeGeoJSON).addTo(map);
+            map.fitBounds(routeLayer.getBounds());
+        }
+
+        async function calculateRoute() {
+            const postcode = document.getElementById('postcode').value.trim();
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = '';
+
+            if (!postcode) {
+                resultElement.textContent = 'Please enter a valid postcode.';
+                return;
+            }
+
+            resultElement.textContent = 'Calculating...';
+
+            try {
+                const homeCoordinates = await getCoordinates(homePostcode);
+                const destinationCoordinates = await getCoordinates(postcode);
+
+                const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': apiKey,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/geo+json'
+                    },
+                    body: JSON.stringify({
+                        coordinates: [homeCoordinates, destinationCoordinates]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Routing API error:', errorText);
+                    throw new Error('Routing API request failed');
+                }
+
+                const data = await response.json();
+                if (data.features && data.features.length > 0) {
+                    const distanceMeters = data.features[0].properties.segments[0].distance;
+                    const distanceMiles = distanceMeters / 1609.34;
+                    const cost = distanceMiles * costPerMile;
+
+                    resultElement.textContent = `Distance: ${distanceMiles.toFixed(2)} miles, Delivery Cost: £${cost.toFixed(2)}`;
+
+                    if (!map) {
+                        initializeMap([homeCoordinates[1], homeCoordinates[0]]);
+                    }
+                    updateMap(data);
+                } else {
+                    console.error('No route features returned:', data);
+                    throw new Error('No route found');
+                }
+            } catch (error) {
+                resultElement.textContent = 'Error calculating route. Please try again.';
+                console.error('Calculation error:', error);
+            }
+        }
+    </script>
 </body>
 </html>
