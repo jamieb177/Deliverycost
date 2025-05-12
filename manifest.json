@@ -1,5 +1,5 @@
 
-{
+
   "name": "Delivery Cost Calculator",
   "short_name": "DeliveryCalc",
   "start_url": "./index.html",
@@ -8,7 +8,7 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "https://github.com/jamieb177/Deliverycost/blob/main/Profile%20Picture%20For%20Social%20Media.png",
+      "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
